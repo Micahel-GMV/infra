@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  jira:
+    depends_on:
+      - postgresql
+    image: teamatldocker/jira
+    labels:
+      kompose.service.type: "LoadBalancer"
+    networks:
+      - atlas-net
+    volumes:
+      - jiradata:/var/atlassian/jira
+    ports:
+      - '8080:8080'
+    environment:
+      - 'JIRA_DATABASE_URL=postgresql://postgres@postgresql/jiradb'
+      - 'JIRA_DB_PASSWORD=jellyfish'
+      - 'SETENV_JVM_MINIMUM_MEMORY=2048m'
+      - 'SETENV_JVM_MAXIMUM_MEMORY=4096m'
+    logging:
+      # limit logs retained on host to 25MB
+      driver: "json-file"
+      options:
+        max-size: "500k"
+        max-file: "50"
+
+  confluence:
+    image: atlassian/confluence:8.7-ubuntu-jdk17
+    labels:
+      kompose.service.type: "LoadBalancer"
+    depends_on:
+      - postgresql
+    container_name: confluence
+    hostname: confluence
+    networks:
+      - atlas-net
+    volumes:
+      - confluencedata:/var/atlassian/confluence
+    ports:
+      - '80:8090'
+      - '8091:8091'
+    environment:
+      - 'CONFLUENCE_DB_URL=postgresql://postgres:jellyfish@postgresql/confluencedb'
+      - 'CATALINA_OPTS= -Xms256m -Xmx1g'
+
+  jenkins:
+    image: jenkins/jenkins:lts
+    labels:
+      kompose.service.type: "LoadBalancer"
+    privileged: true
+    user: root
+    ports:
+      - '8082:8080'
+      - '50000:50000'
+    container_name: jenkins
+    volumes:
+      - /var/jenkins_compose/jenkins_configuration:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  postgresql:
+    image: postgres-with-db
+    ports:
+      - "5432:5432"
+    networks:
+      - atlas-net
+    volumes:
+      - postgresqldata:/var/lib/postgresql/data
+    environment:
+      - 'POSTGRES_USER=postgres'
+      # CHANGE THE PASSWORD!
+      - 'POSTGRES_PASSWORD=jellyfish'
+      - 'POSTGRES_ENCODING=UNICODE'
+      - 'POSTGRES_COLLATE=C'
+      - 'POSTGRES_COLLATE_TYPE=C'
+    logging:
+      # limit logs retained on host to 25MB
+      driver: "json-file"
+      options:
+        max-size: "500k"
+        max-file: "50"
+
+volumes:
+  jiradata:
+    external: false
+  confluencedata:
+    external: false
+  postgresqldata:
+    external: false
+
+networks:
+  atlas-net:
+    driver: bridge
